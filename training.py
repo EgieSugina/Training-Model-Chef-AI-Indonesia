@@ -3,17 +3,21 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
 import pandas as pd
 from datasets import Dataset
 import os
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 # Load model and tokenizer
-model_id = "kalisai/Nusantara-1.8b-Indo-Chat"
-device = "cuda"#if torch.cuda.is_available() else "cpu"
+# model_id = "kalisai/Nusantara-1.8b-Indo-Chat"
+model_id = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Loading model and tokenizer from {model_id}...")
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
     torch_dtype="auto",
-    device_map=None,  # Removed device_map since we can't use it without Accelerate
-    low_cpu_mem_usage=True
+    device_map="auto",  # Use auto device mapping for better memory management
+    low_cpu_mem_usage=True,
+    load_in_8bit=True,  # Load model in 8-bit precision to reduce memory usage
+    use_cache=False  # Disable KV cache for compatibility with gradient checkpointing
 )
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 
@@ -21,9 +25,27 @@ tokenizer = AutoTokenizer.from_pretrained(model_id)
 if tokenizer.pad_token_id is None:
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
+# Prepare the model for training with LoRA
+print("Preparing model for training with LoRA...")
+model = prepare_model_for_kbit_training(model)
+
+# Define LoRA configuration
+lora_config = LoraConfig(
+    r=16,  # Rank
+    lora_alpha=32,
+    target_modules=["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM"
+)
+
+# Apply LoRA to the model
+model = get_peft_model(model, lora_config)
+print("LoRA adapters added to the model")
+
 # Load and prepare dataset
 print("Loading dataset...")
-dataset_path = os.path.join("dataset", "Indonesian_Food_Recipes.csv")
+dataset_path = os.path.join("dataset", "Indonesian_Food_Recipes_small.csv")
 
 if not os.path.exists(dataset_path):
     raise FileNotFoundError(f"Dataset file not found at {dataset_path}. Please ensure the file exists in the 'dataset' folder.")
@@ -69,7 +91,7 @@ def tokenize_function(examples):
         examples["text"],
         padding="max_length",
         truncation=True,
-        max_length=512
+        max_length=384  # Reduced from 512 to save memory
     )
 
 # Tokenize dataset
@@ -89,7 +111,8 @@ data_collator = DataCollatorForLanguageModeling(
 training_args = TrainingArguments(
     output_dir="./indonesian-food-model",
     num_train_epochs=3,
-    per_device_train_batch_size=4,
+    per_device_train_batch_size=1,  # Reduced batch size to save memory
+    gradient_accumulation_steps=4,  # Accumulate gradients to simulate larger batch size
     save_steps=500,
     save_total_limit=2,
     logging_dir="./logs",
@@ -98,6 +121,7 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     fp16=True if torch.cuda.is_available() else False,
     prediction_loss_only=True,  # Only return loss during training
+    gradient_checkpointing=True,  # Enable gradient checkpointing to save memory
 )
 
 # Initialize Trainer
@@ -106,6 +130,7 @@ trainer = Trainer(
     args=training_args,
     train_dataset=tokenized_dataset,
     data_collator=data_collator,  # Use the data collator instead of tokenizer
+    # label_names=["input_ids", "attention_mask"],  # Explicitly provide label_names for PeftModelForCausalLM
 )
 
 # Start training
@@ -114,5 +139,5 @@ trainer.train()
 
 # Save the model
 print("Saving model...")
-trainer.save_model("./indonesian-food-model-final")
+trainer.save_model("./indonesian-food-model-final-v2")
 print("Training completed!")

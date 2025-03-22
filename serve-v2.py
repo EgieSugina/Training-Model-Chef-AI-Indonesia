@@ -1,12 +1,10 @@
 import gradio as gr
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
-import threading
-import time
 
 # Define model and tokenizer paths
-model_path = "./indonesian-food-model-final"
+model_path = "./indonesian-food-model-final-v2"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Starting application on device: {device}")
@@ -14,10 +12,19 @@ print(f"Using local model from: {model_path}")
 
 # Load model and tokenizer from local files
 print("Loading model and tokenizer...")
+# Configure quantization if using CUDA
+quantization_config = None
+if device == "cuda":
+    quantization_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+        bnb_4bit_compute_dtype=torch.float16
+    )
+
 model = AutoModelForCausalLM.from_pretrained(
     model_path,
     torch_dtype="auto",
-    device_map="auto"
+    device_map="auto",
+    quantization_config=quantization_config
 )
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 print("Model and tokenizer loaded successfully!")
@@ -90,42 +97,4 @@ if __name__ == "__main__":
     
     # Launch with the specified port
     demo.launch(server_name="0.0.0.0", server_port=port)
-
-# =====================================================
-# DEPLOYMENT STEPS FOR GOOGLE CLOUD RUN (SOUTHEAST ASIA)
-# =====================================================
-# 
-# 1. Make sure you have the following files in your project directory:
-#    - food.py (this file)
-#    - requirements.txt
-#    - Dockerfile
-#    - .dockerignore
-#
-# 2. Install and set up Google Cloud SDK (if not already done):
-#    https://cloud.google.com/sdk/docs/install
-#
-# 3. Authenticate with Google Cloud:
-#    $ gcloud auth login
-#
-# 4. Set your Google Cloud project:
-#    $ gcloud config set project [YOUR-PROJECT-ID]
-#
-# 5. Build your Docker image:
-#    $ docker build -t gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant .
-#
-# 6. Push the image to Google Container Registry:
-#    $ gcloud auth configure-docker
-#    $ docker push gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant
-#
-# 7. Deploy to Cloud Run in Southeast Asia (Singapore):
-#    $ gcloud run deploy indonesian-cooking-assistant \
-#      --image gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant \
-#      --platform managed \
-#      --region asia-southeast1 \
-#      --allow-unauthenticated \
-#      --memory 2Gi
-#
-# 8. Access your deployed application at the URL provided after deployment
-#
-# Note: You may need to adjust memory allocation based on model requirements.
-# For the Nusantara-1.8B model, 2GB should be sufficient, but you can increase if needed.
+ 

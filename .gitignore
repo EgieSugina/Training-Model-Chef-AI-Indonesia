@@ -33,8 +33,7 @@ ENV/
 *.swo
 
 # Model and Training
-indonesian-food-model/
-indonesian-food-model-final/
+indonesian-food*
 logs/
 *.pt
 *.pth
