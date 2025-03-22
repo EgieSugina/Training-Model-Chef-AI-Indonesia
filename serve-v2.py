@@ -1,24 +1,28 @@
 import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
+import threading
+import time
 
+# Define model and tokenizer paths
+model_path = "./indonesian-food-model-final"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Starting application on device: {device}")
+print(f"Using local model from: {model_path}")
 
-# Load model and tokenizer
+# Load model and tokenizer from local files
 print("Loading model and tokenizer...")
 model = AutoModelForCausalLM.from_pretrained(
-    "kalisai/Nusantara-1.8B-Indo-Chat",
+    model_path,
     torch_dtype="auto",
     device_map="auto"
 )
-tokenizer = AutoTokenizer.from_pretrained("kalisai/Nusantara-1.8B-Indo-Chat")
-# tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/DeepSeek-R1-Distill-Llama-8B") 
+tokenizer = AutoTokenizer.from_pretrained(model_path)
 print("Model and tokenizer loaded successfully!")
 
-# Set pad_token_id to eos_token_id if not set
+# Set pad_token_id explicitly if it's not set
 if tokenizer.pad_token_id is None:
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
@@ -51,8 +55,8 @@ def predict(message, history):
     generated_ids = model.generate(
         model_inputs.input_ids,
         attention_mask=model_inputs.attention_mask,
-        pad_token_id=tokenizer.pad_token_id,
-        max_new_tokens=512
+        max_new_tokens=512,
+        pad_token_id=tokenizer.pad_token_id
     )
     
     # Extract only the new tokens
@@ -68,8 +72,8 @@ def predict(message, history):
 # Create Gradio interface
 demo = gr.ChatInterface(
     predict,
-    title="Nusantara AI Assistant",
-    description="Asisten virtual berbahasa Indonesia",
+    title="Asisten Memasak Indonesia",
+    description="Asisten virtual untuk membantu Anda dengan masakan Indonesia",
     theme="soft"
 )
 
@@ -83,4 +87,45 @@ if __name__ == "__main__":
     # Get port from environment variable or use default
     port = int(os.environ.get("PORT", 8080))
     print(f"Starting Gradio server on port {port}...")
-    demo.launch(server_port=port)
+    
+    # Launch with the specified port
+    demo.launch(server_name="0.0.0.0", server_port=port)
+
+# =====================================================
+# DEPLOYMENT STEPS FOR GOOGLE CLOUD RUN (SOUTHEAST ASIA)
+# =====================================================
+# 
+# 1. Make sure you have the following files in your project directory:
+#    - food.py (this file)
+#    - requirements.txt
+#    - Dockerfile
+#    - .dockerignore
+#
+# 2. Install and set up Google Cloud SDK (if not already done):
+#    https://cloud.google.com/sdk/docs/install
+#
+# 3. Authenticate with Google Cloud:
+#    $ gcloud auth login
+#
+# 4. Set your Google Cloud project:
+#    $ gcloud config set project [YOUR-PROJECT-ID]
+#
+# 5. Build your Docker image:
+#    $ docker build -t gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant .
+#
+# 6. Push the image to Google Container Registry:
+#    $ gcloud auth configure-docker
+#    $ docker push gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant
+#
+# 7. Deploy to Cloud Run in Southeast Asia (Singapore):
+#    $ gcloud run deploy indonesian-cooking-assistant \
+#      --image gcr.io/[YOUR-PROJECT-ID]/indonesian-cooking-assistant \
+#      --platform managed \
+#      --region asia-southeast1 \
+#      --allow-unauthenticated \
+#      --memory 2Gi
+#
+# 8. Access your deployed application at the URL provided after deployment
+#
+# Note: You may need to adjust memory allocation based on model requirements.
+# For the Nusantara-1.8B model, 2GB should be sufficient, but you can increase if needed.
