@@ -10,7 +10,7 @@ PROJECT_ID=""
 IMAGE_NAME="indonesian-cooking-assistant"
 REGION="asia-southeast1"
 MEMORY="32Gi"
-HF_TOKEN="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"
+HF_TOKEN="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"
 
 echo -e "${YELLOW}=====================================================
 DEPLOYMENT SCRIPT FOR GOOGLE CLOUD RUN (SOUTHEAST ASIA)

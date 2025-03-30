@@ -39,7 +39,7 @@ logs/
 *.pth
 *.bin
 *.ckpt
-
+IFMF*
 # Data
 *.csv
 *.json

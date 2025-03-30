@@ -6,20 +6,27 @@ import os
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 # Load model and tokenizer
-# model_id = "kalisai/Nusantara-1.8b-Indo-Chat"
-model_id = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+# MODEL_NAME = "kalisai/Nusantara-1.8b-Indo-Chat"
+# MODEL_NAME = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+# MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct-1M"
+# MODEL_NAME = "Qwen/Qwen2-7B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+# MODEL_NAME = "Qwen/Qwen2-0.5B-Instruct"
+
+OUTPUT_DIR = "./IFMF-Qwen2.5-1.5B-Instruct-full"
+CSV_FILE = "./dataset_all/Indonesian_Food_Recipes_full.csv"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-print(f"Loading model and tokenizer from {model_id}...")
+print(f"Loading model and tokenizer from {MODEL_NAME}...")
 model = AutoModelForCausalLM.from_pretrained(
-    model_id,
+    MODEL_NAME,
     torch_dtype="auto",
     device_map="auto",  # Use auto device mapping for better memory management
     low_cpu_mem_usage=True,
     load_in_8bit=True,  # Load model in 8-bit precision to reduce memory usage
     use_cache=False  # Disable KV cache for compatibility with gradient checkpointing
 )
-tokenizer = AutoTokenizer.from_pretrained(model_id)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 # Set pad token if not set
 if tokenizer.pad_token_id is None:
@@ -45,7 +52,7 @@ print("LoRA adapters added to the model")
 
 # Load and prepare dataset
 print("Loading dataset...")
-dataset_path = os.path.join("dataset", "Indonesian_Food_Recipes_small.csv")
+dataset_path = CSV_FILE
 
 if not os.path.exists(dataset_path):
     raise FileNotFoundError(f"Dataset file not found at {dataset_path}. Please ensure the file exists in the 'dataset' folder.")
@@ -55,6 +62,7 @@ df = pd.read_csv(dataset_path)
 # Print dataset columns
 print("Dataset columns:")
 print(df.columns)
+print(f"Total data in dataset: {len(df)}")
 
 def prepare_data(row):
     # Format the recipe data into a chat format
@@ -85,6 +93,7 @@ Tips:
 # Convert DataFrame to Dataset
 dataset = Dataset.from_pandas(df)
 dataset = dataset.map(prepare_data)
+print(f"Total examples after preparation: {len(dataset)}")
 
 def tokenize_function(examples):
     return tokenizer(
@@ -100,6 +109,7 @@ tokenized_dataset = dataset.map(
     batched=True,
     remove_columns=dataset.column_names
 )
+print(f"Total examples after tokenization: {len(tokenized_dataset)}")
 
 # Create data collator for language modeling
 data_collator = DataCollatorForLanguageModeling(
@@ -109,7 +119,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # Define training arguments
 training_args = TrainingArguments(
-    output_dir="./indonesian-food-model",
+    output_dir=OUTPUT_DIR,
     num_train_epochs=3,
     per_device_train_batch_size=1,  # Reduced batch size to save memory
     gradient_accumulation_steps=4,  # Accumulate gradients to simulate larger batch size
@@ -139,5 +149,5 @@ trainer.train()
 
 # Save the model
 print("Saving model...")
-trainer.save_model("./indonesian-food-model-final-v2")
+trainer.save_model(OUTPUT_DIR)
 print("Training completed!")

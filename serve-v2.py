@@ -4,7 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
 
 # Define model and tokenizer paths
-model_path = "./indonesian-food-model-final-v2"
+model_path = "./indonesian-food-model-final-Qwen-7B"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Starting application on device: {device}")
