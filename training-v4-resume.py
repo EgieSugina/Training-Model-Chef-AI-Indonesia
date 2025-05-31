@@ -1,3 +1,25 @@
+"""
+Fine-tuning script for Qwen models on Indonesian Food Recipe dataset
+
+Citation:
+If you find Qwen models helpful, please cite:
+
+@misc{qwen2.5,
+    title = {Qwen2.5: A Party of Foundation Models},
+    url = {https://qwenlm.github.io/blog/qwen2.5/},
+    author = {Qwen Team},
+    month = {September},
+    year = {2024}
+}
+
+@article{qwen2,
+      title={Qwen2 Technical Report}, 
+      author={An Yang and Baosong Yang and Binyuan Hui and Bo Zheng and Bowen Yu and Chang Zhou and Chengpeng Li and Chengyuan Li and Dayiheng Liu and Fei Huang and Guanting Dong and Haoran Wei and Huan Lin and Jialong Tang and Jialin Wang and Jian Yang and Jianhong Tu and Jianwei Zhang and Jianxin Ma and Jin Xu and Jingren Zhou and Jinze Bai and Jinzheng He and Junyang Lin and Kai Dang and Keming Lu and Keqin Chen and Kexin Yang and Mei Li and Mingfeng Xue and Na Ni and Pei Zhang and Peng Wang and Ru Peng and Rui Men and Ruize Gao and Runji Lin and Shijie Wang and Shuai Bai and Sinan Tan and Tianhang Zhu and Tianhao Li and Tianyu Liu and Wenbin Ge and Xiaodong Deng and Xiaohuan Zhou and Xingzhang Ren and Xinyu Zhang and Xipin Wei and Xuancheng Ren and Yang Fan and Yang Yao and Yichang Zhang and Yu Wan and Yunfei Chu and Yuqiong Liu and Zeyu Cui and Zhenru Zhang and Zhihao Fan},
+      journal={arXiv preprint arXiv:2407.10671},
+      year={2024}
+}
+"""
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, DataCollatorForLanguageModeling
 import pandas as pd
@@ -11,19 +33,39 @@ BASE_MODEL = "Qwen2.5-1.5B-Instruct"
 # BASE_MODEL = "Qwen2.5-0.5B-Instruct"
 # BASE_MODEL = "Qwen2.5-3B-Instruct"
 MODEL_NAME = f"Qwen/{BASE_MODEL}"
-OUTPUT_DIR = f"./IFMF-{BASE_MODEL}-v4-small"
-CSV_FILE = "./dataset_all/Indonesian_Food_Recipes_small.csv"
+OUTPUT_DIR = f"./IFMF-{BASE_MODEL}-v4-full"
+CSV_FILE = "./dataset_all/Indonesian_Food_Recipes_full.csv"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Loading model and tokenizer from {MODEL_NAME}...")
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    torch_dtype=torch.float16,  # Changed from "auto" to explicit float16
-    device_map="auto",
-    use_cache=False
-)
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+# Check if there's a checkpoint to resume from
+checkpoint_dir = None
+if os.path.exists(OUTPUT_DIR):
+    checkpoints = [d for d in os.listdir(OUTPUT_DIR) if d.startswith("checkpoint-")]
+    if checkpoints:
+        latest_checkpoint = max(checkpoints, key=lambda x: int(x.split("-")[1]))
+        checkpoint_dir = os.path.join(OUTPUT_DIR, latest_checkpoint)
+        print(f"Found checkpoint at {checkpoint_dir}. Resuming training...")
+
+# Load model from checkpoint if exists, otherwise from base model
+if checkpoint_dir:
+    model = AutoModelForCausalLM.from_pretrained(
+        checkpoint_dir,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        use_cache=False
+    )
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+else:
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        torch_dtype=torch.float16,  # Changed from "auto" to explicit float16
+        device_map="auto",
+        use_cache=False
+    )
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 # Set pad token if not set
 if tokenizer.pad_token_id is None:
@@ -270,6 +312,7 @@ training_args = TrainingArguments(
     save_strategy="steps",
     load_best_model_at_end=False,
     report_to=None,  # Disable wandb logging
+    resume_from_checkpoint=checkpoint_dir if checkpoint_dir else None,  # Enable resuming from checkpoint
 )
 
 # Initialize Trainer
@@ -283,7 +326,7 @@ trainer = Trainer(
 # Start training
 print("Starting training...")
 try:
-    trainer.train()
+    trainer.train(resume_from_checkpoint=checkpoint_dir if checkpoint_dir else None)
     print("Training completed successfully!")
 except Exception as e:
     print(f"Training failed with error: {e}")
