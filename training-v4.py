@@ -7,9 +7,9 @@ import json
 import random
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 
-BASE_MODEL = "Qwen2.5-1.5B-Instruct"
+# BASE_MODEL = "Qwen2.5-1.5B-Instruct"
 # BASE_MODEL = "Qwen2.5-0.5B-Instruct"
-# BASE_MODEL = "Qwen2.5-3B-Instruct"
+BASE_MODEL = "Qwen2.5-3B-Instruct"
 MODEL_NAME = f"Qwen/{BASE_MODEL}"
 OUTPUT_DIR = f"./IFMF-{BASE_MODEL}-v4-small"
 CSV_FILE = "./dataset_all/Indonesian_Food_Recipes_small.csv"
