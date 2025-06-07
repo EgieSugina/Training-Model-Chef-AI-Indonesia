@@ -104,7 +104,7 @@ flowchart TD
         CC5[💾 Save Steps: 500]
         CC6[📊 Logging Steps: 100]
         CC7[⚖️ Weight Decay: 0.01]
-        CC8[🔥 FP16: True (if CUDA)]
+        CC8[🔥 FP16: True if CUDA]
         CC9[✂️ Gradient Checkpointing: True]
         CC10[🎯 Label Smoothing: 0.1]
         CC11[🔥 Warmup Steps: 100]
